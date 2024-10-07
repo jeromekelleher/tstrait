@@ -16,7 +16,7 @@ def _compute_nodes_genetic_value(
     effect_size,
 ):  # pragma: no cover
     """
-    Compute the genetic value of each node for the specified set of mutations
+    Compute the node genetic values for the specified set of mutations
     encoded in the stack.
     """
     genetic_value = np.zeros(num_nodes)
@@ -36,7 +36,7 @@ def _accumulate_individual_values(
     nodes_genetic_value, nodes_individual, num_nodes, num_individuals
 ):  # pragma: no cover
     """
-    Accumulate the genetic values by summing their node contributions.
+    Accumulate the individual genetic values by summing their node contributions.
     """
     individuals_genetic_value = np.zeros(num_individuals)
     for u in range(num_nodes):
@@ -50,7 +50,7 @@ def _accumulate_edge_values(
     nodes_genetic_value, nodes_edge, num_nodes, num_edges
 ):  # pragma: no cover
     """
-    Accumulate the genetic values by summing their node contributions.
+    Accumulate the edge genetic values by summing their node contributions.
     """
     edges_genetic_value = np.zeros(num_edges)
     for u in range(num_nodes):
@@ -61,7 +61,8 @@ def _accumulate_edge_values(
 
 
 class _GeneticValue:
-    """GeneticValue class to compute genetic values of individuals.
+    """
+    GeneticValue class to compute genetic values of individuals, nodes, or edges.
 
     Parameters
     ----------
@@ -83,6 +84,9 @@ class _GeneticValue:
     # TODO add a better interface here to allow easy testing across the
     # different modes.
     def _individual_genetic_values(self, tree, site, causal_allele, effect_size):
+        """
+        Returns a numpy array with individual genetic values.
+        """
         genetic_value = self._node_genetic_values(
             tree=tree,
             site=site,
@@ -96,8 +100,7 @@ class _GeneticValue:
 
     def _node_genetic_values(self, tree, site, causal_allele, effect_size):
         """
-        Returns a numpy array that describes the genetic of all nodes at
-        a particular site.
+        Returns a numpy array with node genetic values.
         """
         has_mutation = np.zeros(self.ts.num_nodes + 1, dtype=bool)
         state_transitions = {tree.virtual_root: site.ancestral_state}
@@ -124,7 +127,7 @@ class _GeneticValue:
 
     def _run(self, mode):
         """
-        Computes genetic values of individuals, nodes or edges
+        Computes genetic values of individuals, nodes, or edges
         depending on the value of "mode"
 
         Returns
@@ -186,12 +189,14 @@ def genetic_value(ts, trait_df, mode="individual"):
         simulation.
     trait_df : pandas.DataFrame
         Trait dataframe.
+    mode : TODO
+        TODO.
 
     Returns
     -------
     pandas.DataFrame
-        Pandas dataframe that includes genetic value of individuals in the
-        tree sequence.
+        Pandas dataframe that includes genetic value of individuals, edges, or
+        nodes in the tree sequence.
 
     See Also
     --------
@@ -224,7 +229,7 @@ def genetic_value(ts, trait_df, mode="individual"):
     The genetic value dataframe contains the following columns:
 
         * **trait_id**: Trait ID.
-        * **individual_id**: Individual ID inside the tree sequence input.
+        * **individual_id**: Individual ID inside the tree sequence input. TODO
         * **genetic_value**: Genetic values that are obtained from the trait dataframe.
 
     Examples
@@ -254,7 +259,11 @@ def genetic_value(ts, trait_df, mode="individual"):
     return genetic_result
 
 
-def edge_effect_size(ts, trait_df):
+def edge_effect(ts, trait_df):
+    """
+    Compute the effect of each edge in the tree sequence.
+    TODO: Add more details on ts, trait_df etc.
+    """
     ts = _check_instance(ts, "ts", tskit.TreeSequence)
     trait_df = _check_dataframe(
         trait_df, ["site_id", "effect_size", "trait_id", "causal_allele"], "trait_df"
@@ -292,7 +301,8 @@ def edge_effect_size(ts, trait_df):
 
 
 def normalise_genetic_value(genetic_df, mean=0, var=1, ddof=1):
-    """Normalise genetic value dataframe.
+    """
+    Normalise genetic value dataframe.
 
     Parameters
     ----------

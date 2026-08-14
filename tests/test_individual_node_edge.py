@@ -115,26 +115,18 @@ site node time derived_state parent
     return ts
 
 
-def make_trait_df(include_site_2):
-    """
-    Return the allele-effect table.
+def make_trait_df(effect_sizes):
+    """Return an allele-effect table for the fixed set of causal sites."""
+    site_ids = [0, 1, 2, 4, 6, 7, 8, 9]
 
-    If site 2 is included, its effect of -1 lies on edge 1. Removing site 2
-    gives the corrected example in which edge 1 has genetic value 1.
-    """
-    trait_df = pd.DataFrame(
+    return pd.DataFrame(
         {
-            "site_id": [0, 1, 2, 4, 6, 7, 8, 9],
-            "effect_size": [2, 1, -1, -1, -1, -1, 1, 1],
-            "trait_id": [0] * 8,
-            "causal_allele": ["1"] * 8,
+            "site_id": site_ids,
+            "effect_size": effect_sizes,
+            "trait_id": [0] * len(site_ids),
+            "causal_allele": ["1"] * len(site_ids),
         }
     )
-
-    if not include_site_2:
-        trait_df = trait_df.loc[trait_df["site_id"] != 2].reset_index(drop=True)
-
-    return trait_df
 
 
 def assert_value_frame(
@@ -169,7 +161,7 @@ def assert_value_frame(
 
 @pytest.mark.parametrize(
     (
-        "include_site_2",
+        "effect_sizes",
         "expected_edge_effects",
         "expected_edge_values",
         "expected_node_values",
@@ -177,34 +169,28 @@ def assert_value_frame(
     ),
     [
         pytest.param(
-            False,
-            # Site 2 is excluded, so edge 1 has no edge effect.
-            [0, 0, 1, 0, 2, -1, 1, -1],
-            # Edge 1 inherits genetic value 1 from the ancestral path.
-            [1, 1, -1, -2, 1, -2, 1, -1],
-            # Node 1 receives edge values 1 and -1, giving 0.
-            [1, 0, -2, 1, 1, -2, -1, 0],
-            # Individual 0 receives node values 1 and 0, giving 1.
-            [1, -1],
-            id="corrected-example-without-site-2",
+            # Effect sizes from docs/individual_node_edge.md.
+            [2, 1, -1, -1, -1, -1, 1, 1],
+            [0, -1, 1, 0, 2, -1, 1, -1],
+            [1, 0, -1, -2, 1, -2, 1, -1],
+            [1, -1, -2, 1, 1, -2, -1, 0],
+            [0, -1],
+            id="documentation-effect-sizes",
         ),
         pytest.param(
-            True,
-            # The mutation at site 2 adds an effect of -1 to edge 1.
-            [0, -1, 1, 0, 2, -1, 1, -1],
-            # Edge 1 inherits 1 and adds -1, giving 0.
-            [1, 0, -1, -2, 1, -2, 1, -1],
-            # Node 1 receives edge values 0 and -1, giving -1.
-            [1, -1, -2, 1, 1, -2, -1, 0],
-            # Individual 0 receives node values 1 and -1, giving 0.
-            [0, -1],
-            id="literal-example-with-site-2",
+            # Alternative effect sizes for the same ARG.
+            [1, 1, -1, 1, -1, -1, -2, 1],
+            [0, -1, 1, 0, -1, -1, 2, -1],
+            [2, 1, -1, -2, -2, -2, 2, -1],
+            [2, 0, -2, -2, 2, -2, -1, 0],
+            [2, -4],
+            id="alternative-effect-sizes",
         ),
     ],
 )
 def test_edge_node_and_individual_genetic_values(
     individual_node_edge_ts,
-    include_site_2,
+    effect_sizes,
     expected_edge_effects,
     expected_edge_values,
     expected_node_values,
@@ -222,7 +208,7 @@ def test_edge_node_and_individual_genetic_values(
             -> individual genetic values
     """
     ts = individual_node_edge_ts
-    trait_df = make_trait_df(include_site_2)
+    trait_df = make_trait_df(effect_sizes)
 
     edge_effect_df = tstrait.edge_effect(ts, trait_df)
     edge_value_df = tstrait.genetic_value(

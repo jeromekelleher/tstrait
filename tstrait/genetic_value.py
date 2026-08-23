@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import tskit
 
-from .base import _check_dataframe, _check_instance, _check_non_decreasing  # noreorder
+from .base import _check_instance, _check_dataframe, _check_non_decreasing  # noreorder
 
 
 @numba.njit
@@ -64,35 +64,20 @@ class _GeneticValue:
     """
     GeneticValue class to compute genetic values of individuals, nodes, or edges.
 
-    :param ts: Tree sequence data with mutation
-    :type ts: tskit.TreeSequence
-    :param trait_df: Dataframe that includes causal site ID, causal allele,
-        simulated effect size, and trait ID.
-    :type trait_df: pandas.DataFrame
+    Parameters
+    ----------
+    ts : tskit.TreeSequence
+        Tree sequence data with mutation
+    trait_df : pandas.DataFrame
+        Dataframe that includes causal site ID, causal allele, simulated effect
+        size, and trait ID.
     """
 
     def __init__(self, ts, trait_df):
-        self.trait_df = trait_df[["site_id", "effect_size", "trait_id", "causal_allele"]]
+        self.trait_df = trait_df[
+            ["site_id", "effect_size", "trait_id", "causal_allele"]
+        ]
         self.ts = ts
-
-    # Quick hack to make the tests pass. We should refactor the tests to avoid
-    # using internal interfaces, if possible.
-    # TODO add a better interface here to allow easy testing across the
-    # different modes.
-    def _individual_genetic_values(self, tree, site, causal_allele, effect_size):
-        """
-        Returns a numpy array with individual genetic values.
-        """
-        genetic_value = self._node_genetic_values(
-            tree=tree,
-            site=site,
-            causal_allele=causal_allele,
-            effect_size=effect_size,
-        )
-        ts = self.ts
-        return _accumulate_individual_values(
-            genetic_value, ts.nodes_individual, ts.num_nodes, ts.num_individuals
-        )
 
     def _node_genetic_values(self, tree, site, causal_allele, effect_size):
         """
@@ -121,13 +106,15 @@ class _GeneticValue:
             )
         return genetic_value
 
-    def _run(self, mode):
+    def _run(self, level):
         """
         Computes genetic values of individuals, nodes, or edges
-        depending on the value of "mode"
+        depending on the value of "level"
 
-        :returns: Dataframe with genetic value, individual ID, and trait ID.
-        :rtype: pandas.DataFrame
+        Returns
+        -------
+        pandas.DataFrame
+            Dataframe with trait ID, [individual|node|edge] ID, and genetic value.
         """
 
         ts = self.ts
@@ -136,7 +123,7 @@ class _GeneticValue:
             "node": ts.num_nodes,
             "edge": ts.num_edges,
         }
-        N = size_map[mode]
+        N = size_map[level]
 
         num_trait = np.max(self.trait_df.trait_id) + 1
         genetic_value_table = np.zeros((num_trait, N))
@@ -151,11 +138,11 @@ class _GeneticValue:
                 causal_allele=data.causal_allele,
                 effect_size=data.effect_size,
             )
-            if mode == "individual":
+            if level == "individual":
                 genetic_value = _accumulate_individual_values(
                     genetic_value, ts.nodes_individual, ts.num_nodes, ts.num_individuals
                 )
-            elif mode == "edge":
+            elif level == "edge":
                 genetic_value = _accumulate_edge_values(
                     genetic_value, tree.edge_array, ts.num_nodes, ts.num_edges
                 )
@@ -164,7 +151,7 @@ class _GeneticValue:
         df = pd.DataFrame(
             {
                 "trait_id": np.repeat(np.arange(num_trait), N),
-                f"{mode}_id": np.tile(np.arange(N), num_trait),
+                f"{level}_id": np.tile(np.arange(N), num_trait),
                 "genetic_value": genetic_value_table.flatten(),
             }
         )
@@ -172,66 +159,55 @@ class _GeneticValue:
         return df
 
 
-def genetic_value(ts, trait_df, mode="individual"):
+def genetic_value(ts, trait_df, level="individual"):
     """
-    Obtains genetic value from a trait dataframe.
+    Compute genetic values for a tree sequence given a trait dataframe.
 
-    :param ts: The tree sequence data that will be used in the quantitative trait
+    Parameters
+    ----------
+    ts : tskit.TreeSequence
+        The tree sequence data that will be used in the quantitative trait
         simulation.
-    :type ts: tskit.TreeSequence
-    :param trait_df: Trait dataframe.
-    :type trait_df: pandas.DataFrame
-    :returns: Pandas dataframe that includes genetic value of individuals in the
-        tree sequence.
-    :rtype: pandas.DataFrame
+    trait_df : pandas.DataFrame
+        Trait dataframe. See :ref:`req_trait_df` for column and data
+        requirements.
+    level : {"individual", "node", "edge"}, default "individual"
+        The level (entity) at which genetic values are returned.
 
-    .. seealso::
-        :func:`trait_model` Return a trait model, which can be used as `model` input.
+    Returns
+    -------
+    pandas.DataFrame
+        Genetic values for each trait and level (entity) in the tree sequence.
+        The dataframe columns are ``trait_id``, the ID column corresponding to
+        ``level`` (``individual_id``, ``node_id``, or ``edge_id``), and
+        ``genetic_value``.
 
-        :func:`sim_trait` Return a trait dataframe, which can be used as a
-        `trait_df` input.
+    See Also
+    --------
+    trait_model : Return a trait model, which can be used as `model` input.
+    sim_trait : Return a trait dataframe, which can be used as a `trait_df` input.
+    sim_env : Genetic value dataframe output can be used as an input to simulate
+        environmental noise.
+    edge_effect : Compute effects introduced on each edge.
 
-        :func:`sim_env` Genetic value dataframe output can be used as an input
-        to simulate environmental noise.
-
-    .. note::
-        The `trait_df` input has some requirements that will be noted below.
-
-        1. Columns
-
-        The following columns must be included in `trait_df`:
-
-            * **site_id**: Site IDs that have causal allele.
-            * **effect_size**: Simulated effect size of causal allele.
-            * **causal_allele**: Causal allele.
-            * **trait_id**: Trait ID.
-
-        2. Data requirements
-
-            * Site IDs in **site_id** column must be sorted in an ascending order. Please
-              refer to :py:meth:`pandas.DataFrame.sort_values` for details on sorting
-              values in a :class:`pandas.DataFrame`.
-
-            * Trait IDs in **trait_id** column must start from zero and be consecutive.
-
-        The genetic value dataframe contains the following columns:
-
-            * **trait_id**: Trait ID.
-            * **individual_id**: Individual ID inside the tree sequence input.
-            * **genetic_value**: Genetic values that are obtained from the trait
-              dataframe.
-
-    .. rubric:: Examples
-
-    See :ref:`genetic_value` for worked examples.
+    Examples
+    --------
+    See :ref:`genetic_value_doc` and :ref:`genetic_individual_node_edge_doc` for
+    worked examples, while :ref:`phenotype_model` describes
+    quantitative genetics model assumptions.
     """
 
     ts = _check_instance(ts, "ts", tskit.TreeSequence)
-    if ts.num_individuals == 0:
+    valid_levels = ("individual", "node", "edge")
+    if level not in valid_levels:
+        raise ValueError("level must be one of 'individual', 'node', or 'edge'")
+    if level == "individual" and ts.num_individuals == 0:
         raise ValueError("No individuals in the provided tree sequence dataset")
     trait_df = _check_dataframe(
         trait_df, ["site_id", "effect_size", "trait_id", "causal_allele"], "trait_df"
     )
+    if len(trait_df) == 0:
+        raise ValueError("trait_df must contain at least one row")
     _check_non_decreasing(trait_df["site_id"], "site_id")
 
     trait_id = trait_df["trait_id"].unique()
@@ -243,20 +219,51 @@ def genetic_value(ts, trait_df, mode="individual"):
 
     genetic = _GeneticValue(ts=ts, trait_df=trait_df)
 
-    genetic_result = genetic._run(mode)
+    genetic_result = genetic._run(level)
 
     return genetic_result
 
 
 def edge_effect(ts, trait_df):
     """
-    Compute the effect of each edge in the tree sequence.
-    TODO: Add more details on ts, trait_df etc.
+    Compute effects introduced on each edge for a tree sequence
+    given a trait dataframe.
+
+    Parameters
+    ----------
+    ts : tskit.TreeSequence
+        The tree sequence that will be used in the trait simulation.
+    trait_df : pandas.DataFrame
+        Trait dataframe. See :ref:`req_trait_df` for column and data
+        requirements.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Edge effects for each trait and edge in the tree sequence. The
+        dataframe contains ``trait_id``, ``edge_id``, and ``effect_size``.
+
+    Raises
+    ------
+    ValueError
+        If a causal-allele transition occurs on a root node,
+        which has no incoming edge to which an edge effect can be assigned.
+
+    See Also
+    --------
+    genetic_value : Compute trait genetic values for individuals, nodes, or edges.
+
+    Examples
+    --------
+    See :ref:`genetic_individual_node_edge_doc` for a worked example,
+    while :ref:`phenotype_model` describes quantitative genetics model assumptions.
     """
     ts = _check_instance(ts, "ts", tskit.TreeSequence)
     trait_df = _check_dataframe(
         trait_df, ["site_id", "effect_size", "trait_id", "causal_allele"], "trait_df"
     )
+    if len(trait_df) == 0:
+        raise ValueError("trait_df must contain at least one row")
     _check_non_decreasing(trait_df["site_id"], "site_id")
 
     trait_id = trait_df["trait_id"].unique()
@@ -273,11 +280,22 @@ def edge_effect(ts, trait_df):
     tree = tskit.Tree(ts)
     for data in trait_df.itertuples():
         site = ts.site(data.site_id)
+        tree.seek(site.position)
         for m in site.mutations:
-            if m.derived_state == data.causal_allele:
-                tree.seek(site.position)
+            if m.parent == tskit.NULL:
+                state_before_mutation = site.ancestral_state
+            else:
+                state_before_mutation = ts.mutation(m.parent).derived_state
+            had_causal_allele = int(state_before_mutation == data.causal_allele)
+            has_causal_allele = int(m.derived_state == data.causal_allele)
+            state_change = has_causal_allele - had_causal_allele
+            if state_change != 0:
                 e = tree.edge(m.node)
-                edge_effect_table[data.trait_id, e] += data.effect_size
+                if e == tskit.NULL:
+                    raise ValueError(
+                        "Cannot assign an edge effect to a mutation on a root node"
+                    )
+                edge_effect_table[data.trait_id, e] += state_change * data.effect_size
 
     df = pd.DataFrame(
         {
@@ -293,34 +311,44 @@ def normalise_genetic_value(genetic_df, mean=0, var=1, ddof=1):
     """
     Normalise genetic value dataframe.
 
-    :param genetic_df: Genetic value dataframe.
-    :type genetic_df: pandas.DataFrame
-    :param mean: Mean of the resulting genetic value.
-    :type mean: float
-    :param var: Variance of the resulting genetic value.
-    :type var: float
-    :param ddof: Delta degrees of freedom. The divisor used in computing the variance
+    Parameters
+    ----------
+    genetic_df : pandas.DataFrame
+        Genetic value dataframe.
+    mean : float, default 0
+        Mean of the resulting genetic value.
+    var : float, default 1
+        Variance of the resulting genetic value.
+    ddof : int, default 1
+        Delta degrees of freedom. The divisor used in computing the variance
         is N - ddof, where N represents the number of elements.
-    :type ddof: int
-    :returns: Dataframe with normalised genetic value.
-    :rtype: pandas.DataFrame
-    :raises ValueError: If `var` <= 0.
 
-    .. note::
-        The following columns must be included in `genetic_df`:
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe with normalised genetic value.
 
-            * **trait_id**: Trait ID.
-            * **individual_id**: Individual ID inside the tree sequence input.
-            * **genetic_value**: Simulated genetic values.
+    Raises
+    ------
+    ValueError
+        If `var` <= 0.
 
-        The dataframe output has the following columns:
+    Notes
+    -----
+    The following columns must be included in `genetic_df`:
 
-            * **trait_id**: Trait ID.
-            * **individual_id**: Individual ID inside the tree sequence input.
-            * **genetic_value**: Normalised genetic values.
+        * **trait_id**: Trait ID.
+        * **individual_id**: Individual ID inside the tree sequence input.
+        * **genetic_value**: Simulated genetic values.
 
-    .. rubric:: Examples
+    The dataframe output has the following columns:
 
+        * **trait_id**: Trait ID.
+        * **individual_id**: Individual ID inside the tree sequence input.
+        * **genetic_value**: Normalised genetic values.
+
+    Examples
+    --------
     See :ref:`normalise_genetic_value` section for worked examples.
     """
     if var <= 0:

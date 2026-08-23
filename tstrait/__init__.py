@@ -45,6 +45,7 @@ __all__ = [
     "TraitModelNormal",
     "TraitModelT",
     "genetic_value",
+    "edge_effect",
     "normalise_genetic_value",
     "sim_env",
 ]

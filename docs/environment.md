@@ -19,7 +19,7 @@ jupytext:
 # Environmental noise
 
 This page describes how environmental noise is simulated in tstrait. Please refer to
-{ref}`phenotype_model` for mathematical details on the phenotype model.
+[](phenotype_model) for mathematical details on the phenotype model.
 
 **Learning Objectives**
 
@@ -34,7 +34,7 @@ Environmental noise can be simulated by using {py:func}`sim_env`. The required i
 
 genetic_df
 
-: Genetic value dataframe. Please see {ref}`req_genetic_df` for requirements.
+: Genetic value dataframe. Please see [](req_genetic_df) for requirements.
 
 h2
 

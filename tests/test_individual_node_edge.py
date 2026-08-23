@@ -103,7 +103,7 @@ site node time derived_state parent
         strict=False,
     )
 
-    # These checks make accidental changes to the fixture easy to diagnose.
+    # Check if tree sequence is as we expect it to be
     assert ts.sequence_length == 10
     assert ts.num_trees == 2
     assert ts.num_individuals == 2
@@ -116,7 +116,7 @@ site node time derived_state parent
 
 
 def make_trait_df(effect_sizes):
-    """Return an allele-effect table for the fixed set of causal sites."""
+    """Return a causal-allele effect table for the fixed set of sites."""
     site_ids = [0, 1, 2, 4, 6, 7, 8, 9]
 
     return pd.DataFrame(
@@ -159,72 +159,43 @@ def assert_value_frame(
     )
 
 
-@pytest.mark.parametrize(
-    (
-        "effect_sizes",
-        "expected_edge_effects",
-        "expected_edge_values",
-        "expected_node_values",
-        "expected_individual_values",
-    ),
-    [
-        pytest.param(
-            # Effect sizes from docs/individual_node_edge.md.
-            [2, 1, -1, -1, -1, -1, 1, 1],
-            [0, -1, 1, 0, 2, -1, 1, -1],
-            [1, 0, -1, -2, 1, -2, 1, -1],
-            [1, -1, -2, 1, 1, -2, -1, 0],
-            [0, -1],
-            id="documentation-effect-sizes",
-        ),
-        pytest.param(
-            # Alternative effect sizes for the same ARG.
-            [1, 1, -1, 1, -1, -1, -2, 1],
-            [0, -1, 1, 0, -1, -1, 2, -1],
-            [2, 1, -1, -2, -2, -2, 2, -1],
-            [2, 0, -2, -2, 2, -2, -1, 0],
-            [2, -4],
-            id="alternative-effect-sizes",
-        ),
-    ],
-)
-def test_edge_node_and_individual_genetic_values(
-    individual_node_edge_ts,
-    effect_sizes,
-    expected_edge_effects,
-    expected_edge_values,
-    expected_node_values,
-    expected_individual_values,
-):
+def test_edge_node_and_individual_genetic_values(individual_node_edge_ts):
     """
     Check the complete edge-effect to individual-value calculation.
 
     The sequence of calculations is:
 
-        allele effects
+        causal-allele effects
             -> edge effects
             -> edge genetic values
             -> node genetic values
             -> individual genetic values
     """
     ts = individual_node_edge_ts
+    # See values in docs/individual_node_edge.md.
+    effect_sizes = [1, 1, -1, 1, -1, -1, -2, 1]
+    expected_edge_effects = [0, -1, 1, 0, -1, -1, 2, -1]
+    expected_edge_values = [2, 1, -1, -2, -2, -2, 2, -1]
+    expected_node_values = [2, 0, -2, -2, 2, -2, -1, 0]
+    expected_individual_values = [2, -4]
+
     trait_df = make_trait_df(effect_sizes)
 
     edge_effect_df = tstrait.edge_effect(ts, trait_df)
     edge_value_df = tstrait.genetic_value(
         ts,
         trait_df,
-        mode="edge",
+        level="edge",
     )
     node_value_df = tstrait.genetic_value(
         ts,
         trait_df,
-        mode="node",
+        level="node",
     )
     individual_value_df = tstrait.genetic_value(
         ts,
         trait_df,
-        mode="individual",
+        level="individual",
     )
 
     assert_value_frame(
@@ -252,7 +223,7 @@ def test_edge_node_and_individual_genetic_values(
         expected_values=expected_individual_values,
     )
 
-    # The default mode must return individual genetic values.
+    # The default level must return individual genetic values.
     default_value_df = tstrait.genetic_value(ts, trait_df)
 
     pd.testing.assert_frame_equal(

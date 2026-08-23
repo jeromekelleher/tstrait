@@ -4,6 +4,19 @@
 
 In development
 
+### Highlights
+
+- Extended `genetic_value` with `level="individual"` (default), `level="node"`,
+  and `level="edge"` to return genetic values for the corresponding entities.
+  {pr}`155`
+- Added `edge_effect` to compute introduced effects on edges {pr}`155`
+
+### Documentation
+
+- Added a worked example relating causal-allele effects,
+  edge effects, and edge, node, and individual genetic values {pr}`155`
+- Clarified that tstrait currently uses a site-mode effect model {pr}`155`
+
 ## [0.1.2] - 2026-03-03
 
 Maintenance release

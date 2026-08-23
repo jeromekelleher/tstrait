@@ -19,37 +19,41 @@ jupytext:
 # Individual, node, and edge genetic values
 
 In line with the {ref}`tree sequence data model<tskit:sec_data_model>`,
-this page will describe relationships between individual, node, and edge genetic values, and underlying allele effects.
+this page describes relationships between
+individual, node, and edge genetic values,
+and underlying edge effects arising from mutations.
 
 **Learning Objectives**
 
 After this page, you will be able to:
 
 - Understand how to obtain genetic value in tstrait for individuals, nodes, and edges
-- Understand how allele effects give rise to different genetic values
-- Understand how to use allele effect model and mutation effect model in tstrait (TODO: later - move to a separate page?)
+- Understand how causal-allele effects give rise to edge effects and
+  the genetic values.
 
 # Algorithm Overview
 
-The tstrait algorithm used for computing
-{ref}`individuals' genetic values<genetic_value_doc>` from allele effects
-can also be used to compute node and edge genetic values.
-These are related as follows:
+The tstrait algorithm for [individuals' genetic values](genetic_value_doc)
+can also be used to compute node and edge genetic values,
+and there is the related concept of edge effects;
+all following the assumed [quantitative genetics model](phenotype_model).
+These quantities are related as follows:
 
-- *edge effect* is a sum of allele effects on the edge.
-- *edge "genetic" value* is a sum of edge effects above the edge and the edge.
+- *edge effect* is the sum of effects of causal alleles introduced on the edge by mutations.
+- *edge "genetic" value* is its edge effect plus a sum of edge effects above the edge.
 - *node "genetic" value* is a sum of "genetic" values of incoming edges into the node.
 - *individual genetic value* is a sum of "genetic" values of nodes of the individual.
 
-Above we have quoted the term "genetic" when refering to nodes and edges,
+Above we have quoted the term "genetic" when referring to nodes and edges,
 because that term is usually used for individuals.
-For consistency across different tstrait outputs,
-we use the same term (genetic value) for individuals, nodes, and edges.
+Because individuals' genetic value is a sum over the contributions of its nodes,
+the term "genetic value" applies also to nodes, and hence also to incoming edges.
 
 # Example
 
-We will demonstrate the concepts of edge, node, and individual genetic values with
-a tiny example so we can follow the computations.
+We will demonstrate the concepts of edge effects and
+edge, node, and individual genetic values with
+a tiny example so we can follow the calculations.
 
 ```{code-cell}
 import io
@@ -123,7 +127,7 @@ mutations = io.StringIO(
   """
 )
 
-ts = tskit.load_text(individuals = individuals, 
+ts = tskit.load_text(individuals = individuals,
                      nodes = nodes,
                      edges = edges,
                      sites = sites,
@@ -132,14 +136,9 @@ ts = tskit.load_text(individuals = individuals,
 print(ts)
 
 ts.genotype_matrix().T
-# 0 [1, 0, 0, 0, 1, 0, 0, 0, 0, 0]
-# 1 [1, 0, 1, 0, 1, 0, 1, 1, 0, 1]
-# 2 [0, 0, 0, 0, 0, 0, 1, 1, 0, 0]
-# 3 [0, 1, 0, 0, 0, 0, 1, 0, 1, 0]
 
-#        mutation           0    1    2    3    4    5    6    7
 data = {"site_id":       [  0,   1,   2,   4,   6,   7,   8,   9],
-        "effect_size":   [  2,   1,  -1,  -1,  -1,  -1,   1,   1],
+        "effect_size":   [  1,   1,  -1,   1,  -1,  -1,  -2,   1],
         "trait_id":      [  0,   0,   0,   0,   0,   0,   0,   0],
         "causal_allele": ["1", "1", "1", "1", "1", "1", "1", "1"]}
 trait_df = pd.DataFrame(data)
@@ -151,72 +150,49 @@ We obtain **edge effects** by using the {py:func}`edge_effect` function:
 ```{code-cell}
 edge_effect_df = tstrait.edge_effect(ts, trait_df)
 edge_effect_df
-# ALL VALUES ARE CORRECT!
 ```
 
-The above output is a {py:class}`pandas.DataFrame` object with the following columns:
+On edge 6, from node 7 to node 4, mutations 0 and 3 introduce causal alleles,
+each with effect `1`, so the edge effect is `1 + 1 = 2`.
+Edge 0 contains no mutations, so its edge effect is `0`.
 
-> - **trait_id**: Trait ID that will be used in multi-trait simulation.
-> - **edge_id**: Edge ID inside the tree sequence input.
-> - **effect_size**: Simulated edge effect.
+TODO: Gregor to check these IDs
 
-We obtain **edge genetic values** by using the `mode="edge"` argument
+We obtain **edge genetic values** by using the `level="edge"` argument
 of the {py:func}`genetic_value` function:
 
 ```{code-cell}
-edge_value_df = tstrait.genetic_value(ts, trait_df, mode="edge")
+edge_value_df = tstrait.genetic_value(ts, trait_df, level="edge")
 edge_value_df
-# ERROR: Edge 1 should have value 1, but has 0!
 ```
 
-The above output is a {py:class}`pandas.DataFrame` object with the following columns:
+Edge 1 inherits the value `2` from edge 6 over `[0, 5)` and
+has its own effect of `-1`, so its edge genetic value is `2 + (-1) = 1`.
 
-> - **trait_id**: Trait ID that will be used in multi-trait simulation.
-> - **edge_id**: Edge ID inside the tree sequence input.
-> - **genetic_value**: Simulated edge genetic value.
+TODO: Gregor to check these IDs
 
-We obtain **node genetic values** by using the `mode="node"` argument
+We obtain **node genetic values** by using the `level="node"` argument
 of the {py:func}`genetic_value` function:
 
 ```{code-cell}
-node_value_df = tstrait.genetic_value(ts, trait_df, mode="node")
+node_value_df = tstrait.genetic_value(ts, trait_df, level="node")
 node_value_df
-# ERROR: Node 1 should have value 0, but has -1 (due to incoming edge 1 having wrong value)
 ```
 
-The above output is a {py:class}`pandas.DataFrame` object with the following columns:
+Note that the node 1 is recombinant:
+it inherits
+edge 1 over `[0, 5)`, with genetic value `1` and
+edge 2 over `[5, 10)`, with genetic value `-1`.
+Its node genetic value is therefore `1 + (-1) = 0`.
 
-> - **trait_id**: Trait ID that will be used in multi-trait simulation.
-> - **node_id**: Node ID inside the tree sequence input.
-> - **genetic_value**: Simulated node genetic value.
-
-We obtain **individual genetic values** by using the `mode="individual"` argument
-of the {py:func}`genetic_value` function, which is the default mode:
+We obtain **individual genetic values** by using the `level="individual"` argument
+of the {py:func}`genetic_value` function, which is the default level:
 
 ```{code-cell}
 individual_value_df = tstrait.genetic_value(ts, trait_df)
 individual_value_df
-# ERROR: Individual 0 should have value 1, but has 0 (due to incoming edge 1 / node 1 having wrong value)!
 ```
 
-The above output is a {py:class}`pandas.DataFrame` object with the following columns:
-
-> - **trait_id**: Trait ID that will be used in multi-trait simulation.
-> - **individual_id**: Individual ID inside the tree sequence input.
-> - **genetic_value**: Simulated Individual genetic value.
-
-# Allele and mutation effect models
-
-TODO: Later
-Show how this is done in tstrait.
-Move to a separate page?
-
-tstrait by default uses the allele effect model.
-This model assumes that an allele has appeared with mutation once
-in the tree sequence and that the effect of this allele is the same
-for all individuals carrying this allele.
-
-tstrait also supports the mutation effect model.
-This models assumes that an allele can appear with mutation multiple times
-in the tree sequence and that the effect of the resulting alleles differs
-between mutation events and correspondingly for individuals carrying these alleles.
+The individual genetic values are `[2, -4]`.
+Individual 0 contains nodes 0 and 1, so its value is `2 + 0 = 2`.
+Individual 1 contains nodes 2 and 3, so its value is `-2 + (-2) = -4`.

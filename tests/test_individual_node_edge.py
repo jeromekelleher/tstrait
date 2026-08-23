@@ -4,12 +4,14 @@ Tests for edge effects and edge, node, and individual genetic values.
 The tree sequence is based on the recombining ARG in
 docs/individual_node_edge.md. The expected values can be calculated by hand.
 """
+
 import io
 
 import numpy as np
 import pandas as pd
 import pytest
 import tskit
+
 import tstrait
 
 

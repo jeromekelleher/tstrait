@@ -33,7 +33,7 @@ To learn more about tree sequences:
 
 - The [tskit website](https://tskit.dev/) provides [learning materials](https://tskit.dev/learn/) explaining
   what tree sequences are, and includes tutorials, publications and videos.
-- The {ref}`PySLiM manual<pyslim:sec_introduction>` explains how forward-time genetic simulation can create
+- The {ref}`PySLiM manual<pyslim:sec_introduction>` explains how forwards-in-time genetic simulation can create
   tree sequences.
 - The {ref}`msprime manual<msprime:sec_intro>` details an efficient backward-time genetic simulator that outputs
   tree sequences.

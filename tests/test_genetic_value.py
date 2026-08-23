@@ -5,7 +5,6 @@ import pytest
 
 import tstrait
 from tstrait.base import _check_numeric_array
-from tstrait.genetic_value import _GeneticValue
 
 from .data import (
     binary_tree,

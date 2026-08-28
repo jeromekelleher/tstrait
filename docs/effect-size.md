@@ -55,7 +55,9 @@ user.
 
 The genetic values ($X\beta$) are obtained by adding up the effects of causal alleles
 over all the genomes in each individual, regardless of ploidy.
-This corresponds to the {ref}`**site mode** of tree sequence statistics <tskit:sec_stats_mode>`.
+
+These genetic values correspond to
+the {ref}`**site mode** of tree sequence statistics <tskit:sec_stats_mode>`.
 That is, contribution to $X\beta$ depends on the allelic state at causal sites,
 not on which mutation event produced the allele.
 Branch and mutation modes are currently not implemented in tstrait

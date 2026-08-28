@@ -27,27 +27,27 @@ and underlying edge effects arising from mutations.
 
 After this page, you will be able to:
 
-- Understand how to obtain genetic value in tstrait for individuals, nodes, and edges
+- Understand how to obtain genetic values in tstrait for individuals, nodes, and edges
 - Understand how causal-allele effects give rise to edge effects and
   the genetic values.
 
 # Algorithm Overview
 
-The tstrait algorithm for [individuals' genetic values](genetic_value_doc)
+The tstrait algorithm for {ref}`individuals' genetic values <genetic_value_doc>`
 can also be used to compute node and edge genetic values,
 and there is the related concept of edge effects;
-all following the assumed [quantitative genetics model](phenotype_model).
+all following the assumed {ref}`quantitative genetics model <phenotype_model>`.
 These quantities are related as follows:
 
 - *edge effect* is the sum of effects of causal alleles introduced on the edge by mutations.
-- *edge "genetic" value* is its edge effect plus a sum of edge effects above the edge.
-- *node "genetic" value* is a sum of "genetic" values of incoming edges into the node.
+- *edge "genetic" value* is its edge effect plus a sum of edge effects ancestral to the edge.
+- *node "genetic" value* is a sum of "genetic" values of immediately ancestral edges into the node.
 - *individual genetic value* is a sum of "genetic" values of nodes of the individual.
 
 Above we have quoted the term "genetic" when referring to nodes and edges,
 because that term is usually used for individuals.
 Because individuals' genetic value is a sum over the contributions of its nodes,
-the term "genetic value" applies also to nodes, and hence also to incoming edges.
+the term "genetic value" applies also to nodes, and hence also to immediately ancestral edges of the nodes.
 
 # Example
 

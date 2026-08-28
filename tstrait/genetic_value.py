@@ -245,7 +245,7 @@ def edge_effect(ts, trait_df):
     ------
     ValueError
         If a causal-allele transition occurs on a root node,
-        which has no incoming edge to which an edge effect can be assigned.
+        which has no immediately ancestral edge to which an edge effect can be assigned.
 
     See Also
     --------
@@ -283,7 +283,7 @@ def edge_effect(ts, trait_df):
             if m.parent == tskit.NULL:
                 state_before_mutation = site.ancestral_state
             else:
-                state_before_mutation = ts.mutation(m.parent).derived_state
+                state_before_mutation = m.inherited_state
             had_causal_allele = int(state_before_mutation == data.causal_allele)
             has_causal_allele = int(m.derived_state == data.causal_allele)
             state_change = has_causal_allele - had_causal_allele

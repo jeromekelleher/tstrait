@@ -25,7 +25,7 @@ def individual_node_edge_ts():
         individual 0: nodes 0 and 1
         individual 1: nodes 2 and 3
 
-    Node 1 has two incoming edges because of recombination:
+    Node 1 has two immediately ancestral edges because of recombination:
 
         edge 1: [0, 5), parent 4 -> child 1
         edge 2: [5, 10), parent 5 -> child 1

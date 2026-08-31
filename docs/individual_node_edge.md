@@ -70,15 +70,15 @@ meaning that this tree sequence has two local trees.
 We denote the first (second) local tree by shading the nodes' first (second) region with black (white) colour.
 To help tracking IDs across the different elements of a tree sequence
 in the following text, we prepend a letter to the zero-based IDs
-(`iX` for individual X, `nY` for node Y, `eW` for edge W, and `mZ` for mutation Z).
+(`iI` for individual I, `nN` for node N, `eE` for edge E, and `mM@S` for mutation M at site S).
 
 ```{figure} _static/individual_node_edge_alleles.svg
 :name: fig_individual_node_edge_alleles
 :width: 90%
 :align: center
-:alt: Diagram of a tree sequence with two individuals (`i0` and `i1`), eight nodes (`n0-n7`; `n0-n3` are sample nodes and `n4-n7` are ancestral nodes), eight edges (`e0-e7`; with a "virtual" root edge `e8`), eight mutations (`m0-m7`; in red colour), and resulting node alleles across ten sites. The first (second) local tree is denoted with black (white) colour.
+:alt: Diagram of a tree sequence with two individuals (`i0` and `i1`), eight nodes (`n0-n7`; `n0-n3` are sample nodes and `n4-n7` are ancestral nodes), eight edges (`e0-e7`; with a "virtual" root edge `e8`), eight mutations (`m0-m7` [each at a different site]; in red colour), and resulting node alleles across ten sites. The first (second) local tree is denoted with black (white) colour.
 
-Diagram of a tree sequence with two individuals (`i0` and `i1`), eight nodes (`n0-n7`; `n0-n3` are sample nodes and `n4-n7` are ancestral nodes), eight edges (`e0-e7`; with a "virtual" root edge `e8`), eight mutations (`m0-m7`; in red colour), and resulting node alleles across ten sites. The first (second) local tree is denoted with black (white) colour.
+Diagram of a tree sequence with two individuals (`i0` and `i1`), eight nodes (`n0-n7`; `n0-n3` are sample nodes and `n4-n7` are ancestral nodes), eight edges (`e0-e7`; with a "virtual" root edge `e8`), eight mutations (`m0-m7` [each at a different site]; in red colour), and resulting node alleles across ten sites. The first (second) local tree is denoted with black (white) colour.
 ```
 
 We now create tables for the example and

@@ -53,10 +53,18 @@ noise is simulated from the following distribution,
 where $V_G=Var(X\beta)$ and $h^2$ is the narrow-sense heritability that is defined by the
 user.
 
-The genetic values ($X\beta$) are obtained by simply adding up over all the genomes in each individual,
-regardless of ploidy.
+The genetic values ($X\beta$) are obtained by adding up the effects of causal alleles
+over all the genomes in each individual, regardless of ploidy.
+
+These genetic values correspond to
+the {ref}`**site mode** of tree sequence statistics <tskit:sec_stats_mode>`.
+That is, contribution to $X\beta$ depends on the allelic state at causal sites,
+not on which mutation event produced the allele.
+Branch and mutation modes are currently not implemented in tstrait
+and may be added in the future.
 
 :::{seealso}
+
 - [](genetic_value_doc) for obtaining the genetic value $X\beta$.
 - [](environment_noise) for simulating environmental noise $\epsilon$.
 - [](numericalise_genotype) for modifying the numericalisation of genotypes.
@@ -89,7 +97,7 @@ model.name
 ```
 
 tstrait uses this distribution to simulate effect size $\beta$ in the phenotype model described
-in [](eq:phenotype-model). 
+in [](eq:phenotype-model).
 
 The following effect size distributions are supported in tstrait, and please refer to links under
 **Details** for details on the input and distribution.
@@ -205,7 +213,6 @@ ts.site(0)
 ```
 The details of sites in tree sequences can be found {ref}`here<tskit:sec_site_table_definition>`.
 
-
 (trait_frequency_dependence)=
 
 ## Frequency Dependence
@@ -261,7 +268,7 @@ it in your trait simulation.
 
 # trait.sim_trait(ts, num_causal=1000, model=model, random_seed=1)
 # also works here
-trait_df = tstrait.sim_trait(ts, num_causal=1000, model=model, 
+trait_df = tstrait.sim_trait(ts, num_causal=1000, model=model,
                              alpha=0, random_seed=1)
 
 plt.scatter(trait_df.allele_freq, trait_df.effect_size)
@@ -277,7 +284,7 @@ we will be simulating effect sizes with `alpha` = -1/2.
 
 ```{code-cell}
 
-trait_df = tstrait.sim_trait(ts, num_causal=1000, model=model, 
+trait_df = tstrait.sim_trait(ts, num_causal=1000, model=model,
                              alpha=-1/2, random_seed=1)
 
 plt.scatter(trait_df.allele_freq, trait_df.effect_size)
@@ -305,7 +312,7 @@ Example:
 
 ```{code-cell}
 
-trait_df = tstrait.sim_trait(ts, causal_sites=[0, 3, 4], model=model, 
+trait_df = tstrait.sim_trait(ts, causal_sites=[0, 3, 4], model=model,
                              alpha=-1/2, random_seed=1)
 trait_df
 ```

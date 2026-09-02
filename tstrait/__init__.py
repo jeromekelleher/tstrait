@@ -23,6 +23,7 @@ from .trait_model import (
 )  # noreorder
 from .genetic_value import (
     genetic_value,
+    edge_effect,
     normalise_genetic_value,
 )  # noreorder
 from .simulate_environment import (
@@ -44,6 +45,7 @@ __all__ = [
     "TraitModelNormal",
     "TraitModelT",
     "genetic_value",
+    "edge_effect",
     "normalise_genetic_value",
     "sim_env",
 ]

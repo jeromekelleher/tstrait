@@ -5,7 +5,6 @@ import pytest
 
 import tstrait
 from tstrait.base import _check_numeric_array
-from tstrait.genetic_value import _GeneticValue
 
 from .data import (
     binary_tree,
@@ -21,7 +20,7 @@ from .data import (
 @pytest.fixture(scope="class")
 def sample_ts():
     ts = msprime.sim_ancestry(10, sequence_length=100_000, random_seed=1)
-    ts = msprime.sim_mutations(ts, rate=0.01, random_seed=1)
+    ts = msprime.sim_mutations(ts, rate=1e-2, random_seed=1)
     return ts
 
 
@@ -43,6 +42,20 @@ def sample_df():
 @pytest.fixture(scope="class")
 def sample_trait_model():
     return tstrait.trait_model(distribution="normal", mean=0, var=1)
+
+
+def individual_genetic_values(tree, site, causal_allele, effect_size):
+    """Return individual values for one causal site via the public API."""
+    trait_df = pd.DataFrame(
+        {
+            "site_id": [site.id],
+            "effect_size": [effect_size],
+            "trait_id": [0],
+            "causal_allele": [causal_allele],
+        }
+    )
+    result = tstrait.genetic_value(ts=tree.tree_sequence, trait_df=trait_df)
+    return result["genetic_value"].to_numpy()
 
 
 class TestInput:
@@ -79,22 +92,149 @@ class TestInput:
             df["site_id"] = [2, 0]
             tstrait.genetic_value(ts=sample_ts, trait_df=df)
 
+    @pytest.mark.parametrize("function", [tstrait.genetic_value, tstrait.edge_effect])
     @pytest.mark.parametrize("trait_id", [[2, 3], [0, 2]])
-    def test_trait_id(self, sample_ts, sample_df, trait_id):
+    def test_trait_id(self, sample_ts, sample_df, function, trait_id):
         with pytest.raises(
             ValueError, match="trait_id must be consecutive and start from 0"
         ):
             df = sample_df.copy()
             df["trait_id"] = trait_id
-            tstrait.genetic_value(ts=sample_ts, trait_df=df)
+            function(ts=sample_ts, trait_df=df)
 
     def test_no_individual(self, sample_df):
-        ts = msprime.simulate(100, length=10000, mutation_rate=1e-2)
-        df = sample_df.copy()
+        ts = msprime.simulate(10, length=100, random_seed=1)
+        # legacy msprime.simulate() creates a tree sequence without individuals
         with pytest.raises(
             ValueError, match="No individuals in the provided tree sequence dataset"
         ):
-            tstrait.genetic_value(ts=ts, trait_df=df)
+            tstrait.genetic_value(ts=ts, trait_df=sample_df)
+
+    @pytest.mark.parametrize(
+        ("level", "id_column", "size_attribute"),
+        [
+            ("node", "node_id", "num_nodes"),
+            ("edge", "edge_id", "num_edges"),
+        ],
+    )
+    def test_node_or_edge_level_without_individuals(
+        self, sample_df, level, id_column, size_attribute
+    ):
+        ts = msprime.simulate(10, length=100, mutation_rate=1e-2, random_seed=1)
+        result = tstrait.genetic_value(ts=ts, trait_df=sample_df, level=level)
+
+        size = getattr(ts, size_attribute)
+        assert list(result.columns) == ["trait_id", id_column, "genetic_value"]
+        assert len(result) == size
+        np.testing.assert_array_equal(result["trait_id"], np.zeros(size))
+        np.testing.assert_array_equal(result[id_column], np.arange(size))
+
+    def test_invalid_level(self, sample_ts, sample_df):
+        with pytest.raises(
+            ValueError,
+            match="level must be one of 'individual', 'node', or 'edge'",
+        ):
+            tstrait.genetic_value(ts=sample_ts, trait_df=sample_df, level="bla")
+
+    def test_empty_trait_df(self, sample_ts, sample_df):
+        empty_trait_df = sample_df.iloc[0:0]
+        with pytest.raises(ValueError, match="trait_df must contain at least one row"):
+            tstrait.genetic_value(ts=sample_ts, trait_df=empty_trait_df)
+        with pytest.raises(ValueError, match="trait_df must contain at least one row"):
+            tstrait.edge_effect(ts=sample_ts, trait_df=empty_trait_df)
+
+
+class TestEdgeEffect:
+    @pytest.mark.parametrize(
+        ("ancestral_state", "derived_state", "expected_effect"),
+        [
+            pytest.param("A", "T", 2, id="non_causal_to_causal"),
+            pytest.param("T", "A", -2, id="causal_to_non_causal"),
+            pytest.param("A", "G", 0, id="non_causal_to_non_causal"),
+            pytest.param("T", "T", 0, id="causal_to_causal"),
+        ],
+    )
+    def test_causal_allele_state_transition(
+        self, ancestral_state, derived_state, expected_effect
+    ):
+        ts = binary_tree()
+        tables = ts.dump_tables()
+        tables.mutations.clear()
+        tables.sites.clear()
+        site_id = tables.sites.add_row(position=0, ancestral_state=ancestral_state)
+        mutation_node = 4
+        tables.mutations.add_row(
+            site=site_id, node=mutation_node, derived_state=derived_state
+        )
+        ts = tables.tree_sequence()
+
+        trait_df = pd.DataFrame(
+            {
+                "site_id": [site_id],
+                "effect_size": [2],
+                "trait_id": [0],
+                "causal_allele": ["T"],
+            }
+        )
+        result = tstrait.edge_effect(ts=ts, trait_df=trait_df)
+
+        expected = np.zeros(ts.num_edges)
+        expected[ts.first().edge(mutation_node)] = expected_effect
+        np.testing.assert_array_equal(result["effect_size"], expected)
+
+    def test_site_mode_allelic_state_transitions(self):
+        ts = binary_tree()
+        tables = ts.dump_tables()
+        tables.mutations.clear()
+        tables.sites.clear()
+        site_id = tables.sites.add_row(position=0, ancestral_state="A")
+        mutation_id = tables.mutations.add_row(site=site_id, node=4, derived_state="T")
+        tables.mutations.add_row(
+            site=site_id, node=0, derived_state="A", parent=mutation_id
+        )
+        tables.mutations.add_row(site=site_id, node=3, derived_state="T")
+        ts = tables.tree_sequence()
+
+        trait_df = pd.DataFrame(
+            {
+                "site_id": [site_id],
+                "effect_size": [2],
+                "trait_id": [0],
+                "causal_allele": ["T"],
+            }
+        )
+        result = tstrait.edge_effect(ts=ts, trait_df=trait_df)
+
+        tree = ts.first()
+        expected = np.zeros(ts.num_edges)
+        expected[tree.edge(4)] = 2
+        expected[tree.edge(0)] = -2
+        expected[tree.edge(3)] = 2
+        np.testing.assert_array_equal(result["effect_size"], expected)
+
+    def test_mutation_on_root(self):
+        ts = binary_tree()
+        root = ts.first().root
+        tables = ts.dump_tables()
+        tables.mutations.clear()
+        tables.sites.clear()
+        site_id = tables.sites.add_row(position=0, ancestral_state="A")
+        tables.mutations.add_row(site=site_id, node=root, derived_state="T")
+        ts = tables.tree_sequence()
+        trait_df = pd.DataFrame(
+            {
+                "site_id": [site_id],
+                "effect_size": [1],
+                "trait_id": [0],
+                "causal_allele": ["T"],
+            }
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot assign an edge effect to a mutation on a root node",
+        ):
+            tstrait.edge_effect(ts=ts, trait_df=trait_df)
 
 
 class TestOutputDim:
@@ -170,10 +310,7 @@ class TestOutputDim:
 
 
 class TestGenotype:
-    """Test the `_individual_genetic_values` and `_obtain_allele_count` method and
-    check if they can accurately detect the individual genotype. Afterwards, we will
-    check the output of `genetic_value`.
-    """
+    """Test that genetic_value accurately detects individual genotypes."""
 
     def test_binary_tree(self):
         trait_df = pd.DataFrame(
@@ -187,11 +324,10 @@ class TestGenotype:
 
         ts = binary_tree()
         tree = ts.first()
-        genetic = _GeneticValue(ts, trait_df)
-        g0 = genetic._individual_genetic_values(tree, ts.site(0), "T", 1)
-        g1 = genetic._individual_genetic_values(tree, ts.site(1), "T", 2)
-        g2 = genetic._individual_genetic_values(tree, ts.site(2), "C", 3)
-        g3 = genetic._individual_genetic_values(tree, ts.site(3), "C", 4)
+        g0 = individual_genetic_values(tree, ts.site(0), "T", 1)
+        g1 = individual_genetic_values(tree, ts.site(1), "T", 2)
+        g2 = individual_genetic_values(tree, ts.site(2), "C", 3)
+        g3 = individual_genetic_values(tree, ts.site(3), "C", 4)
 
         np.testing.assert_equal(g0, np.array([1, 0, 2]) * 1)
         np.testing.assert_equal(g1, np.array([1, 1, 0]) * 2)
@@ -222,11 +358,10 @@ class TestGenotype:
 
         ts = diff_ind_tree()
         tree = ts.first()
-        genetic = _GeneticValue(ts, trait_df)
-        g0 = genetic._individual_genetic_values(tree, ts.site(0), "T", 1)
-        g1 = genetic._individual_genetic_values(tree, ts.site(1), "T", 2)
-        g2 = genetic._individual_genetic_values(tree, ts.site(2), "C", 3)
-        g3 = genetic._individual_genetic_values(tree, ts.site(3), "C", 4)
+        g0 = individual_genetic_values(tree, ts.site(0), "T", 1)
+        g1 = individual_genetic_values(tree, ts.site(1), "T", 2)
+        g2 = individual_genetic_values(tree, ts.site(2), "C", 3)
+        g3 = individual_genetic_values(tree, ts.site(3), "C", 4)
 
         np.testing.assert_equal(g0, np.array([1, 1, 1]) * 1)
         np.testing.assert_equal(g1, np.array([1, 0, 1]) * 2)
@@ -256,9 +391,8 @@ class TestGenotype:
 
         ts = non_binary_tree()
         tree = ts.first()
-        genetic = _GeneticValue(ts, trait_df)
-        g0 = genetic._individual_genetic_values(tree, ts.site(0), "T", 1)
-        g1 = genetic._individual_genetic_values(tree, ts.site(1), "C", 2)
+        g0 = individual_genetic_values(tree, ts.site(0), "T", 1)
+        g1 = individual_genetic_values(tree, ts.site(1), "C", 2)
 
         np.testing.assert_equal(g0, np.array([0, 1, 2]) * 1)
         np.testing.assert_equal(g1, np.array([0, 1, 1]) * 2)
@@ -275,7 +409,7 @@ class TestGenotype:
 
         pd.testing.assert_frame_equal(genetic_df, genetic_result, check_dtype=False)
 
-    def test_triploid(self, sample_df):
+    def test_triploid(self):
         trait_df = pd.DataFrame(
             {
                 "site_id": [0, 1],
@@ -287,9 +421,8 @@ class TestGenotype:
 
         ts = triploid_tree()
         tree = ts.first()
-        genetic = _GeneticValue(ts, sample_df)
-        g0 = genetic._individual_genetic_values(tree, ts.site(0), "T", 1)
-        g1 = genetic._individual_genetic_values(tree, ts.site(1), "C", 2)
+        g0 = individual_genetic_values(tree, ts.site(0), "T", 1)
+        g1 = individual_genetic_values(tree, ts.site(1), "C", 2)
 
         np.testing.assert_equal(g0, np.array([1, 2]) * 1)
         np.testing.assert_equal(g1, np.array([1, 1]) * 2)
